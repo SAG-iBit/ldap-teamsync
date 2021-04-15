@@ -181,15 +181,15 @@ def execute_sync(org, team, slug, state):
     else:
         for user in state["action"]["add"]:
             # Validate that user is in org
-            if org.is_member(user) or ADD_MEMBER:
-                try:
-                    print(f"Adding {user} to {slug}")
-                    team.add_or_update_membership(user)
-                except github3.exceptions.NotFoundError:
-                    print(f"User: {user} not found")
-                    pass
-            else:
-                print(f"Skipping {user} as they are not part of the org")
+            #if org.is_member(user) or ADD_MEMBER:
+            try:
+                print(f"Adding {user} to {slug}")
+                team.add_or_update_membership(user)
+            except github3.exceptions.NotFoundError:
+                print(f"User: {user} not found")
+                pass
+            #else:
+            #    print(f"Skipping {user} as they are not part of the org")
 
         for user in state["action"]["remove"]:
             print(f"Removing {user} from {slug}")

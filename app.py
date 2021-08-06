@@ -188,15 +188,15 @@ def execute_sync(org, team, slug, state):
     else:
         for user in state["action"]["add"]:
             # Validate that user is in org
-            #if org.is_member(user) or ADD_MEMBER:
-            try:
-                print(f"Adding {user} to {slug}")
-                team.add_or_update_membership(user)
-            except github3.exceptions.NotFoundError:
-                print(f"User: {user} not found")
-                pass
-            #else:
-            #    print(f"Skipping {user} as they are not part of the org")
+            if org.is_member(user) or ADD_MEMBER:
+                try:
+                    print(f"Adding {user} to {slug}")
+                    team.add_or_update_membership(user)
+                except github3.exceptions.NotFoundError:
+                    print(f"User: {user} not found")
+                    pass
+                else:
+                    print(f"Skipping {user} as they are not part of the org")
 
         for user in state["action"]["remove"]:
             print(f"Removing {user} from {slug}")
@@ -256,6 +256,24 @@ def get_app_installations():
             ctx.pop()
     return installations
 
+def clean_up_orgs(org):
+  """
+  Remove members with no team from organization
+  :param org:
+  :return:
+  """
+  if addUserAsMember:
+      members = org.members(role="member")
+      for user in members:
+        teams = org.teams()
+        to_remove=True
+        for team in teams:
+          if user in team.members():
+            to_remove=False
+            break
+        if to_remove:
+          print(f"Remove user: {user} from organization")
+          org.remove_member(user)
 
 @scheduler.scheduled_job(
     trigger=CronTrigger.from_crontab(CRON_INTERVAL), id="sync_all_teams"
@@ -288,6 +306,7 @@ def sync_all_teams():
                         print(f"Organization: {org.login}")
                         print(f"Unable to sync team: {team.slug}")
                         print(f"DEBUG: {e}")
+                clean_up_orgs(org)
             except Exception as e:
                 print(f"DEBUG: {e}")
             finally:

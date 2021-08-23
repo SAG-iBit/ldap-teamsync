@@ -86,8 +86,7 @@ class AzureAD:
             members = []
         for member in members:
             if member["@odata.type"] == "#microsoft.graph.group":
-                # add to members
-                member_list.append(get_group_members(token, member["id"]))
+                print("Nested group: ", member["displayName"])
             else:
                 user_info = self.get_user_info(token=token, user=member["id"])
                 if self.AZURE_USER_IS_UPN:

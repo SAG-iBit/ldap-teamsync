@@ -306,7 +306,7 @@ def sync_all_teams():
                         print(f"Organization: {org.login}")
                         print(f"Unable to sync team: {team.slug}")
                         print(f"DEBUG: {e}")
-                clean_up_orgs(org)
+                #clean_up_orgs(org)
             except Exception as e:
                 print(f"DEBUG: {e}")
             finally:

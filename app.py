@@ -15,11 +15,11 @@ from githubapp import (
     CRON_INTERVAL,
     TEST_MODE,
     USER_SYNC_ATTRIBUTE,
+    SYNCMAP_ONLY,
 )
 
 app = Flask(__name__)
 github_app = GitHubApp(app)
-directory = DirectoryClient()
 
 # Schedule a full sync
 scheduler = BackgroundScheduler(daemon=True)
@@ -93,6 +93,7 @@ def directory_group_members(group=None):
     :rtype: list
     """
     try:
+        directory = DirectoryClient()
         members = directory.get_group_members(group_name=group)
         group_members = [member for member in members]
     except Exception as e:
@@ -284,6 +285,7 @@ def sync_all_teams():
     """
     print(f'Syncing all teams: {time.strftime("%A, %d. %B %Y %I:%M:%S %p")}')
     installations = get_app_installations()
+    custom_map = load_custom_map()
     for i in installations():
         print("========================================================")
         print(f"## Processing Organization: {i.account['login']}")
@@ -295,6 +297,9 @@ def sync_all_teams():
                 org = client.organization(i.account["login"])
                 for team in org.teams():
                     try:
+                        if SYNCMAP_ONLY and team.slug not in custom_map:
+                            print(f"skipping team {team.slug} - not in sync map")
+                            continue
                         sync_team(
                             client=client,
                             owner=org.login,

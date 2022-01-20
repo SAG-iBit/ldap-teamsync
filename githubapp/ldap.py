@@ -1,7 +1,10 @@
 import os
+import traceback
+import sys
 import json
 import logging
 from ldap3 import Server, Connection, ALL
+from ldap3.utils.conv import escape_filter_chars
 from pprint import pprint
 
 LOG = logging.getLogger(__name__)
@@ -36,6 +39,8 @@ class LDAPClient:
             self.LDAP_BIND_PASSWORD = os.environ["LDAP_BIND_PASSWORD"]
         else:
             raise Exception("LDAP credentials have not been specified")
+
+        self.USER_SYNC_ATTRIBUTE = os.environ["USER_SYNC_ATTRIBUTE"]
         self.conn = Connection(
             self.LDAP_SERVER_HOST,
             user=self.LDAP_BIND_USER,
@@ -64,27 +69,47 @@ class LDAPClient:
                 for member in entry["attributes"][self.LDAP_GROUP_MEMBER_ATTRIBUTE]:
                     if self.LDAP_GROUP_BASE_DN in member:
                         pass
-                        # print("Nested groups are not yet supported.")
-                        # print("This feature is currently under development.")
-                        # print("{} was not processed.".format(member))
-                        # print("Unable to look up '{}'".format(member))
-                        # print(e)
+                    # print("Nested groups are not yet supported.")
+                    # print("This feature is currently under development.")
+                    # print("{} was not processed.".format(member))
+                    # print("Unable to look up '{}'".format(member))
+                    # print(e)
                     else:
                         try:
                             member_dn = self.get_user_info(user=member)
                             # pprint(member_dn)
-                            username = str(
-                                member_dn["attributes"][self.LDAP_USER_ATTRIBUTE][0]
-                            ).casefold()
-                            email = str(
-                                member_dn["attributes"][self.LDAP_USER_MAIL_ATTRIBUTE][
-                                    0
-                                ]
-                            ).casefold()
-                            user_info = {"username": username, "email": email}
-                            member_list.append(user_info)
+                            if (
+                                member_dn
+                                and member_dn["attributes"]
+                                and member_dn["attributes"][self.LDAP_USER_ATTRIBUTE]
+                            ):
+                                username = str(
+                                    member_dn["attributes"][self.LDAP_USER_ATTRIBUTE][0]
+                                ).casefold()
+                                if (
+                                    self.USER_SYNC_ATTRIBUTE == "mail"
+                                    and self.LDAP_USER_MAIL_ATTRIBUTE
+                                    not in member_dn["attributes"]
+                                ):
+                                    raise Exception(
+                                        f"{self.USER_SYNC_ATTRIBUTE} not found"
+                                    )
+                                elif (
+                                    self.LDAP_USER_MAIL_ATTRIBUTE
+                                    in member_dn["attributes"]
+                                ):
+                                    email = str(
+                                        member_dn["attributes"][
+                                            self.LDAP_USER_MAIL_ATTRIBUTE
+                                        ][0]
+                                    ).casefold()
+                                else:
+                                    email = None
+
+                                user_info = {"username": username, "email": email}
+                                member_list.append(user_info)
                         except Exception as e:
-                            print(e)
+                            traceback.print_exc(file=sys.stderr)
         return member_list
 
     def get_user_info(self, user=None):
@@ -103,12 +128,15 @@ class LDAPClient:
             try:
                 self.conn.search(
                     search_base=search_base,
-                    search_filter=self.LDAP_USER_FILTER.replace("{username}", user),
+                    search_filter=self.LDAP_USER_FILTER.replace(
+                        "{username}", escape_filter_chars(user)
+                    ),
                     attributes=["*"],
                 )
-                data = json.loads(self.conn.entries[0].entry_to_json())
-                return data
+                if len(self.conn.entries) > 0:
+                    data = json.loads(self.conn.entries[0].entry_to_json())
+                    return data
             except Exception as e:
-                print(e)
+                traceback.print_exc(file=sys.stderr)
         except Exception as e:
-            print(e)
+            traceback.print_exc(file=sys.stderr)

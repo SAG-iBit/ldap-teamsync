@@ -4,6 +4,10 @@ import time
 import json
 import github3
 from distutils.util import strtobool
+import threading
+import sys
+import traceback
+from concurrent.futures import ThreadPoolExecutor
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -55,33 +59,39 @@ def sync_team(client=None, owner=None, team_id=None, slug=None):
     """
     print("-------------------------------")
     print(f"Processing Team: {slug}")
-    org = client.organization(owner)
-    team = org.team(team_id)
-    custom_map = load_custom_map()
+
     try:
-        directory_group = custom_map[slug] if slug in custom_map else slug
-        directory_members = directory_group_members(group=directory_group)
-    except Exception as e:
-        directory_members = []
-        print(e)
-    team_members = github_team_members(
-        client=client, owner=owner, team_id=team_id, attribute=USER_SYNC_ATTRIBUTE
-    )
-    compare = compare_members(
-        group=directory_members, team=team_members, attribute=USER_SYNC_ATTRIBUTE
-    )
-    if TEST_MODE:
-        print("Skipping execution due to TEST_MODE...")
-        print(json.dumps(compare, indent=2))
-    else:
+        org = client.organization(owner)
+        team = org.team(team_id)
+        custom_map = load_custom_map()
         try:
-            execute_sync(org=org, team=team, slug=slug, state=compare)
-        except ValueError as e:
-            if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                open_issue(client=client, slug=slug, message=e)
-        except AssertionError as e:
-            if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                open_issue(client=client, slug=slug, message=e)
+            directory_group = custom_map[slug] if slug in custom_map else slug
+            directory_members = directory_group_members(group=directory_group)
+        except Exception as e:
+            directory_members = []
+            traceback.print_exc(file=sys.stderr)
+
+        team_members = github_team_members(
+            client=client, owner=owner, team_id=team_id, attribute=USER_SYNC_ATTRIBUTE
+        )
+        compare = compare_members(
+            group=directory_members, team=team_members, attribute=USER_SYNC_ATTRIBUTE
+        )
+        if TEST_MODE:
+            print("Skipping execution due to TEST_MODE...")
+            print(json.dumps(compare, indent=2))
+        else:
+            try:
+                execute_sync(org=org, team=team, slug=slug, state=compare)
+            except ValueError as e:
+                if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
+                    open_issue(client=client, slug=slug, message=e)
+            except AssertionError as e:
+                if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
+                    open_issue(client=client, slug=slug, message=e)
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        raise
 
 
 def directory_group_members(group=None):
@@ -98,7 +108,7 @@ def directory_group_members(group=None):
         group_members = [member for member in members]
     except Exception as e:
         group_members = []
-        print(e)
+        traceback.print_exc(file=sys.stderr)
     return group_members
 
 
@@ -283,44 +293,55 @@ def sync_all_teams():
     Lookup teams in a GitHub org and synchronize all teams with your user directory
     :return:
     """
+
     print(f'Syncing all teams: {time.strftime("%A, %d. %B %Y %I:%M:%S %p")}')
+
     installations = get_app_installations()
     custom_map = load_custom_map()
-    for i in installations():
-        print("========================================================")
-        print(f"## Processing Organization: {i.account['login']}")
-        print("========================================================")
-        with app.app_context() as ctx:
-            try:
-                gh = GitHubApp(ctx.push())
-                client = gh.app_installation(installation_id=i.id)
-                org = client.organization(i.account["login"])
-                for team in org.teams():
-                    try:
-                        if SYNCMAP_ONLY and team.slug not in custom_map:
-                            print(f"skipping team {team.slug} - not in sync map")
-                            continue
-                        sync_team(
-                            client=client,
-                            owner=org.login,
-                            team_id=team.id,
-                            slug=team.slug,
+    futures = []
+    with ThreadPoolExecutor(max_workers=10) as exe:
+        for i in installations():
+            print("========================================================")
+            print(f"## Processing Organization: {i.account['login']}")
+            print("========================================================")
+            with app.app_context() as ctx:
+                try:
+                    gh = GitHubApp(ctx.push())
+                    client = gh.app_installation(installation_id=i.id)
+                    org = client.organization(i.account["login"])
+                    for team in org.teams():
+                        futures.append(
+                            exe.submit(sync_team_helper, team, custom_map, client, org)
                         )
-                    except Exception as e:
-                        print(f"Organization: {org.login}")
-                        print(f"Unable to sync team: {team.slug}")
-                        print(f"DEBUG: {e}")
-                #clean_up_orgs(org)
-            except Exception as e:
-                print(f"DEBUG: {e}")
-            finally:
-                ctx.pop()
+                except Exception as e:
+                    print(f"DEBUG: {e}")
+                finally:
+                    ctx.pop()
+    for future in futures:
+        future.result()
 
 
-sync_all_teams()
+def sync_team_helper(team, custom_map, client, org):
+    try:
+        if SYNCMAP_ONLY and team.slug not in custom_map:
+            print(f"skipping team {team.slug} - not in sync map")
+            return
+        sync_team(
+            client=client,
+            owner=org.login,
+            team_id=team.id,
+            slug=team.slug,
+        )
+    except Exception as e:
+        print(f"Organization: {org.login}")
+        print(f"Unable to sync team: {team.slug}")
+        print(f"DEBUG: {e}")
+
+
+thread = threading.Thread(target=sync_all_teams)
+thread.start()
 
 if __name__ == "__main__":
-    sync_all_teams()
     app.run(
         host=os.environ.get("FLASK_RUN_HOST", "0.0.0.0"),
         port=os.environ.get("FLASK_RUN_PORT", "5000"),

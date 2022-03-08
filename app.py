@@ -318,7 +318,12 @@ def sync_all_teams():
                 finally:
                     ctx.pop()
     for future in futures:
-        future.result()
+        if future.cancelled():
+            continue
+        try:
+            future.result(timeout=3000) # wait for 50 minutes to finish
+        except concurrent.futures._base.TimeoutError:
+            exe.shutdown(wait=False, cancel_futures=True)
 
 
 def sync_team_helper(team, custom_map, client, org):

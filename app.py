@@ -7,7 +7,7 @@ from distutils.util import strtobool
 import threading
 import sys
 import traceback
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -323,9 +323,12 @@ def sync_all_teams():
             continue
         try:
             future.result(timeout=3000) # wait for 50 minutes to finish
-        except concurrent.futures._base.TimeoutError:
+        except TimeoutError as e: # catch the Timeout error
+            print(f"DEBUG: {e}")
             exe.shutdown(wait=False, cancel_futures=True)
-
+        except Exception as e: # catch rest of exceptions, if exist
+            print(f"DEBUG: {e}")
+            exe.shutdown(wait=False, cancel_futures=True)
 
 def sync_team_helper(team, custom_map, client, org):
     try:

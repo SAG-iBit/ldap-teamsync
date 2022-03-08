@@ -318,7 +318,7 @@ def sync_all_teams():
                 finally:
                     ctx.pop()
     for future in futures:
-        print([f._state for f in futures]) # print status of each threat
+        print([f._state for f in futures]) # print status of each thread
         if future.cancelled():
             continue
         try:

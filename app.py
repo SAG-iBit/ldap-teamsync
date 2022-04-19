@@ -16,7 +16,7 @@ from apscheduler.events import (
     EVENT_JOB_MISSED,
     EVENT_JOB_EXECUTED,
     EVENT_JOB_ADDED,
-    EVENT_JOB_REMOVED
+    EVENT_JOB_REMOVED,
 )
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import JobExecutionEvent
@@ -39,33 +39,36 @@ github_app = GitHubApp(app)
 # Schedule a full sync
 scheduler = BackgroundScheduler(daemon=True)
 
+
 def job_missed(event):
     """Job missed event."""
-    print(f'Missed job {event.job_id}')
+    print(f"Missed job {event.job_id}")
 
 
 def job_error(event):
     """Job error event."""
-    print(f'Error on job {event.job_id}')
+    print(f"Error on job {event.job_id}")
 
 
 def job_executed(event):
     """Job executed event."""
-    print(f'Executed job {event.job_id}')
+    print(f"Executed job {event.job_id}")
 
 
 def job_added(event):
     """Job added event."""
-    print(f'Added job {event.job_id}')
+    print(f"Added job {event.job_id}")
 
 
 def job_removed(event):
     """Job removed event."""
-    print(f'Removed job {event.job_id}')
-    
+    print(f"Removed job {event.job_id}")
+
+
 def job_submitted(event):
     """Job removed event."""
-    print(f'Submitted job {event.job_id}')    
+    print(f"Submitted job {event.job_id}")
+
 
 scheduler.add_listener(job_missed, EVENT_JOB_MISSED)
 scheduler.add_listener(job_error, EVENT_JOB_ERROR)
@@ -87,7 +90,7 @@ def sync_new_team():
     team_id = github_app.payload["team"]["id"]
     if os.environ["USER_DIRECTORY"].upper() == "AAD":
         # Azure APIs don't currently support case insensitive searching
-        slug = github_app.payload["team"]["name"]#.replace(" ", "-")
+        slug = github_app.payload["team"]["name"]  # .replace(" ", "-")
     else:
         slug = github_app.payload["team"]["slug"]
     client = github_app.installation_client
@@ -328,6 +331,7 @@ def sync_all_teams():
     custom_map = load_custom_map()
     futures = []
     from concurrent.futures import as_completed
+
     with ThreadPoolExecutor(max_workers=1) as exe:
         for i in installations():
             print("========================================================")

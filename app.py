@@ -9,7 +9,17 @@ import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
+from apscheduler.events import (
+    EVENT_JOB_SUBMITTED,
+    EVENT_JOB_MAX_INSTANCES,
+    EVENT_JOB_ERROR,
+    EVENT_JOB_MISSED,
+    EVENT_JOB_EXECUTED,
+    EVENT_JOB_ADDED,
+    EVENT_JOB_REMOVED
+)
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.events import JobExecutionEvent
 from apscheduler.triggers.cron import CronTrigger
 from flask import Flask
 
@@ -18,6 +28,7 @@ from githubapp import (
     DirectoryClient,
     CRON_INTERVAL,
     TEST_MODE,
+    ADD_MEMBER,
     USER_SYNC_ATTRIBUTE,
     SYNCMAP_ONLY,
 )
@@ -27,6 +38,41 @@ github_app = GitHubApp(app)
 
 # Schedule a full sync
 scheduler = BackgroundScheduler(daemon=True)
+
+def job_missed(event):
+    """Job missed event."""
+    print(f'Missed job {event.job_id}')
+
+
+def job_error(event):
+    """Job error event."""
+    print(f'Error on job {event.job_id}')
+
+
+def job_executed(event):
+    """Job executed event."""
+    print(f'Executed job {event.job_id}')
+
+
+def job_added(event):
+    """Job added event."""
+    print(f'Added job {event.job_id}')
+
+
+def job_removed(event):
+    """Job removed event."""
+    print(f'Removed job {event.job_id}')
+    
+def job_submitted(event):
+    """Job removed event."""
+    print(f'Submitted job {event.job_id}')    
+
+scheduler.add_listener(job_missed, EVENT_JOB_MISSED)
+scheduler.add_listener(job_error, EVENT_JOB_ERROR)
+scheduler.add_listener(job_executed, EVENT_JOB_EXECUTED)
+scheduler.add_listener(job_added, EVENT_JOB_ADDED)
+scheduler.add_listener(job_removed, EVENT_JOB_REMOVED)
+scheduler.add_listener(job_submitted, EVENT_JOB_SUBMITTED)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown(wait=False))
 
@@ -41,7 +87,7 @@ def sync_new_team():
     team_id = github_app.payload["team"]["id"]
     if os.environ["USER_DIRECTORY"].upper() == "AAD":
         # Azure APIs don't currently support case insensitive searching
-        slug = github_app.payload["team"]["name"] #.replace(" ", "-")
+        slug = github_app.payload["team"]["name"].replace(" ", "-")
     else:
         slug = github_app.payload["team"]["slug"]
     client = github_app.installation_client
@@ -163,8 +209,8 @@ def compare_members(group, team, attribute="username"):
     :return: sync_state
     :rtype: dict
     """
-    directory_list = [x[attribute].lower() for x in group]
-    github_list = [x[attribute].lower() for x in team]
+    directory_list = [x[attribute] for x in group]
+    github_list = [x[attribute] for x in team]
     add_users = list(set(directory_list) - set(github_list))
     remove_users = list(set(github_list) - set(directory_list))
     sync_state = {
@@ -198,15 +244,15 @@ def execute_sync(org, team, slug, state):
     else:
         for user in state["action"]["add"]:
             # Validate that user is in org
-            #if org.is_member(user) or ADD_MEMBER:
-            try:
-                print(f"Adding {user} to {slug}")
-                team.add_or_update_membership(user)
-            except github3.exceptions.NotFoundError:
-                print(f"User: {user} not found")
-                pass
-            #else:
-            #    print(f"Skipping {user} as they are not part of the org")
+            if org.is_member(user) or ADD_MEMBER:
+                try:
+                    print(f"Adding {user} to {slug}")
+                    team.add_or_update_membership(user)
+                except github3.exceptions.NotFoundError:
+                    print(f"User: {user} not found")
+                    pass
+            else:
+                print(f"Skipping {user} as they are not part of the org")
 
         for user in state["action"]["remove"]:
             print(f"Removing {user} from {slug}")
@@ -266,24 +312,6 @@ def get_app_installations():
             ctx.pop()
     return installations
 
-def clean_up_orgs(org):
-  """
-  Remove members with no team from organization
-  :param org:
-  :return:
-  """
-  if addUserAsMember:
-      members = org.members(role="member")
-      for user in members:
-        teams = org.teams()
-        to_remove=True
-        for team in teams:
-          if user in team.members():
-            to_remove=False
-            break
-        if to_remove:
-          print(f"Remove user: {user} from organization")
-          org.remove_member(user)
 
 @scheduler.scheduled_job(
     trigger=CronTrigger.from_crontab(CRON_INTERVAL), id="sync_all_teams"
@@ -299,7 +327,8 @@ def sync_all_teams():
     installations = get_app_installations()
     custom_map = load_custom_map()
     futures = []
-    with ThreadPoolExecutor(max_workers=10) as exe:
+    from concurrent.futures import as_completed
+    with ThreadPoolExecutor(max_workers=1) as exe:
         for i in installations():
             print("========================================================")
             print(f"## Processing Organization: {i.account['login']}")
@@ -317,8 +346,8 @@ def sync_all_teams():
                     print(f"DEBUG: {e}")
                 finally:
                     ctx.pop()
-    for future in futures:
-        future.result()
+        for future in as_completed(futures):
+            future.result()
 
 
 def sync_team_helper(team, custom_map, client, org):

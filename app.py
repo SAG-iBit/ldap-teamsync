@@ -87,7 +87,7 @@ def sync_new_team():
     team_id = github_app.payload["team"]["id"]
     if os.environ["USER_DIRECTORY"].upper() == "AAD":
         # Azure APIs don't currently support case insensitive searching
-        slug = github_app.payload["team"]["name"].replace(" ", "-")
+        slug = github_app.payload["team"]["name"]#.replace(" ", "-")
     else:
         slug = github_app.payload["team"]["slug"]
     client = github_app.installation_client
@@ -209,8 +209,8 @@ def compare_members(group, team, attribute="username"):
     :return: sync_state
     :rtype: dict
     """
-    directory_list = [x[attribute] for x in group]
-    github_list = [x[attribute] for x in team]
+    directory_list = [x[attribute].lower() for x in group]
+    github_list = [x[attribute].lower() for x in team]
     add_users = list(set(directory_list) - set(github_list))
     remove_users = list(set(github_list) - set(directory_list))
     sync_state = {

@@ -28,7 +28,6 @@ from githubapp import (
     DirectoryClient,
     CRON_INTERVAL,
     TEST_MODE,
-    ADD_MEMBER,
     USER_SYNC_ATTRIBUTE,
     SYNCMAP_ONLY,
 )

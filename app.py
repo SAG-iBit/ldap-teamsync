@@ -95,12 +95,12 @@ def sync_team(client=None, owner=None, team_id=None, slug=None):
                 execute_sync(org=org, team=team, slug=slug, state=compare)
             except ValueError as e:
                 if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                  print(f"DEBUG: {e}")  
-                  #  open_issue(client=client, slug=slug, message=e)
+                    print(f"DEBUG: {e}")
+                    #  open_issue(client=client, slug=slug, message=e)
             except AssertionError as e:
                 if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                  print(f"DEBUG: {e}")  
-                  #  open_issue(client=client, slug=slug, message=e)
+                    print(f"DEBUG: {e}")
+                    #  open_issue(client=client, slug=slug, message=e)
     except Exception:
         traceback.print_exc(file=sys.stderr)
         raise
@@ -210,14 +210,14 @@ def execute_sync(org, team, slug, state):
     else:
         for user in state["action"]["add"]:
             # Validate that user is in org
-            #if org.is_member(user) or ADD_MEMBER:
+            # if org.is_member(user) or ADD_MEMBER:
             try:
                 print(f"Adding {user} to {slug}")
                 team.add_or_update_membership(user)
             except github3.exceptions.NotFoundError:
                 print(f"User: {user} not found")
                 pass
-            #else:
+            # else:
             #    print(f"Skipping {user} as they are not part of the org")
 
         for user in state["action"]["remove"]:
@@ -310,10 +310,12 @@ def sync_all_teams():
                         )
                     for future in futures:
                         try:
-                            result = future.result() # could throw an exception if the thread threw an exception
+                            result = (
+                                future.result()
+                            )  # could throw an exception if the thread threw an exception
                             print(result)
                         except Exception as e:
-                            print('Thread threw exception:', e)  
+                            print("Thread threw exception:", e)
                 except Exception as e:
                     print(f"DEBUG: {e}")
                 finally:

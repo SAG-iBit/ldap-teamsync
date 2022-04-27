@@ -294,7 +294,7 @@ def sync_all_teams():
     custom_map = load_custom_map()
     futures = []
 
-    with ThreadPoolExecutor(max_workers=4) as exe:
+    with ThreadPoolExecutor(max_workers=1) as exe:
         for i in installations():
             print("========================================================")
             print(f"## Processing Organization: {i.account['login']}")

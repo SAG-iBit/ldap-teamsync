@@ -37,44 +37,6 @@ github_app = GitHubApp(app)
 
 # Schedule a full sync
 scheduler = BackgroundScheduler(daemon=True)
-
-
-def job_missed(event):
-    """Job missed event."""
-    print(f"Missed job {event.job_id}")
-
-
-def job_error(event):
-    """Job error event."""
-    print(f"Error on job {event.job_id}")
-
-
-def job_executed(event):
-    """Job executed event."""
-    print(f"Executed job {event.job_id}")
-
-
-def job_added(event):
-    """Job added event."""
-    print(f"Added job {event.job_id}")
-
-
-def job_removed(event):
-    """Job removed event."""
-    print(f"Removed job {event.job_id}")
-
-
-def job_submitted(event):
-    """Job removed event."""
-    print(f"Submitted job {event.job_id}")
-
-
-scheduler.add_listener(job_missed, EVENT_JOB_MISSED)
-scheduler.add_listener(job_error, EVENT_JOB_ERROR)
-scheduler.add_listener(job_executed, EVENT_JOB_EXECUTED)
-scheduler.add_listener(job_added, EVENT_JOB_ADDED)
-scheduler.add_listener(job_removed, EVENT_JOB_REMOVED)
-scheduler.add_listener(job_submitted, EVENT_JOB_SUBMITTED)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown(wait=False))
 
@@ -133,10 +95,12 @@ def sync_team(client=None, owner=None, team_id=None, slug=None):
                 execute_sync(org=org, team=team, slug=slug, state=compare)
             except ValueError as e:
                 if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                    open_issue(client=client, slug=slug, message=e)
+                  print(f"DEBUG: {e}")  
+                  #  open_issue(client=client, slug=slug, message=e)
             except AssertionError as e:
                 if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                    open_issue(client=client, slug=slug, message=e)
+                  print(f"DEBUG: {e}")  
+                  #  open_issue(client=client, slug=slug, message=e)
     except Exception:
         traceback.print_exc(file=sys.stderr)
         raise
@@ -329,9 +293,8 @@ def sync_all_teams():
     installations = get_app_installations()
     custom_map = load_custom_map()
     futures = []
-    from concurrent.futures import as_completed
 
-    with ThreadPoolExecutor(max_workers=1) as exe:
+    with ThreadPoolExecutor(max_workers=4) as exe:
         for i in installations():
             print("========================================================")
             print(f"## Processing Organization: {i.account['login']}")
@@ -345,12 +308,16 @@ def sync_all_teams():
                         futures.append(
                             exe.submit(sync_team_helper, team, custom_map, client, org)
                         )
+                    for future in futures:
+                        try:
+                            result = future.result() # could throw an exception if the thread threw an exception
+                            print(result)
+                        except Exception as e:
+                            print('Thread threw exception:', e)  
                 except Exception as e:
                     print(f"DEBUG: {e}")
                 finally:
                     ctx.pop()
-        for future in as_completed(futures):
-            future.result()
 
 
 def sync_team_helper(team, custom_map, client, org):

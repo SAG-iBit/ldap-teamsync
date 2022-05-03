@@ -35,8 +35,26 @@ from githubapp import (
 app = Flask(__name__)
 github_app = GitHubApp(app)
 
+
+def err_listener(ev):
+    msg = ""
+    if ev.code == EVENT_JOB_ERROR:
+        msg = ev.traceback
+    elif ev.code == EVENT_JOB_MISSED:
+        msg = "missed job, job_id:%s, schedule_run_time:%s" % (
+            ev.job_id,
+            ev.scheduled_run_time,
+        )
+    elif ev.code == EVENT_JOB_MAX_INSTANCES:
+        msg = "reached maximum of running instances, job_id:%s" % (ev.job_id)
+    print(ev)
+
+
 # Schedule a full sync
 scheduler = BackgroundScheduler(daemon=True)
+scheduler.add_listener(
+    err_listener, EVENT_JOB_MAX_INSTANCES | EVENT_JOB_MISSED | EVENT_JOB_ERROR
+)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown(wait=False))
 

@@ -10,14 +10,13 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 from apscheduler.events import (
-    EVENT_JOB_SUBMITTED,
+    EVENT_ALL,
     EVENT_JOB_MAX_INSTANCES,
     EVENT_JOB_ERROR,
     EVENT_JOB_MISSED,
-    EVENT_JOB_EXECUTED,
-    EVENT_JOB_ADDED,
-    EVENT_JOB_REMOVED,
+    JobExecutionEvent,
 )
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import JobExecutionEvent
 from apscheduler.triggers.cron import CronTrigger
@@ -47,14 +46,18 @@ def err_listener(ev):
         )
     elif ev.code == EVENT_JOB_MAX_INSTANCES:
         msg = "reached maximum of running instances, job_id:%s" % (ev.job_id)
+    elif isinstance(ev, JobExecutionEvent):
+        print(f"err_listener: {ev.scheduled_run_time}")
+        if ev.exception:
+            msg = "The job crashed : %s" % (ev.traceback)
+    else:
+        msg = ev
     print(ev)
 
 
 # Schedule a full sync
 scheduler = BackgroundScheduler(daemon=True)
-scheduler.add_listener(
-    err_listener, EVENT_JOB_MAX_INSTANCES | EVENT_JOB_MISSED | EVENT_JOB_ERROR
-)
+scheduler.add_listener(err_listener, EVENT_ALL)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown(wait=False))
 

@@ -117,7 +117,9 @@ class GitHubApp(object):
         if current_app.config.get("GITHUBAPP_URL"):
             return GitHubEnterprise(
                 current_app.config["GITHUBAPP_URL"],
-                session=session.GitHubSession(default_connect_timeout=300, default_read_timeout=400)
+                session=session.GitHubSession(
+                    default_connect_timeout=300, default_read_timeout=400
+                ),
                 verify=current_app.config["VERIFY_SSL"],
             )
         return GitHub()

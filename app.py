@@ -302,8 +302,9 @@ def sync_all_teams():
                 finally:
                     ctx.pop()
     for future in futures:
-        future.result()               
+        future.result()
     print(f'Syncing all teams successful: {time.strftime("%A, %d. %B %Y %I:%M:%S %p")}')
+
 
 def sync_team_helper(team, custom_map, client, org):
     try:

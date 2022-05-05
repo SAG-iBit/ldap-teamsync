@@ -8,17 +8,7 @@ import threading
 import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-
-from apscheduler.events import (
-    EVENT_ALL,
-    EVENT_JOB_MAX_INSTANCES,
-    EVENT_JOB_ERROR,
-    EVENT_JOB_MISSED,
-    JobExecutionEvent,
-)
-
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.events import JobExecutionEvent
 from apscheduler.triggers.cron import CronTrigger
 from flask import Flask
 
@@ -34,30 +24,8 @@ from githubapp import (
 app = Flask(__name__)
 github_app = GitHubApp(app)
 
-
-def err_listener(ev):
-    msg = ""
-    if ev.code == EVENT_JOB_ERROR:
-        msg = ev.traceback
-    elif ev.code == EVENT_JOB_MISSED:
-        msg = "missed job, job_id:%s, schedule_run_time:%s" % (
-            ev.job_id,
-            ev.scheduled_run_time,
-        )
-    elif ev.code == EVENT_JOB_MAX_INSTANCES:
-        msg = "reached maximum of running instances, job_id:%s" % (ev.job_id)
-    elif isinstance(ev, JobExecutionEvent):
-        print(f"err_listener: {ev.scheduled_run_time}")
-        if ev.exception:
-            msg = "The job crashed : %s" % (ev.traceback)
-    else:
-        msg = ev
-    print(ev)
-
-
 # Schedule a full sync
 scheduler = BackgroundScheduler(daemon=True)
-scheduler.add_listener(err_listener, EVENT_ALL)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown(wait=False))
 
@@ -315,7 +283,7 @@ def sync_all_teams():
     custom_map = load_custom_map()
     futures = []
 
-    with ThreadPoolExecutor(max_workers=1) as exe:
+    with ThreadPoolExecutor(max_workers=10) as exe:
         for i in installations():
             print("========================================================")
             print(f"## Processing Organization: {i.account['login']}")
@@ -329,19 +297,13 @@ def sync_all_teams():
                         futures.append(
                             exe.submit(sync_team_helper, team, custom_map, client, org)
                         )
-                    for future in futures:
-                        try:
-                            result = (
-                                future.result()
-                            )  # could throw an exception if the thread threw an exception
-                            print(result)
-                        except Exception as e:
-                            print("Thread threw exception:", e)
                 except Exception as e:
                     print(f"DEBUG: {e}")
                 finally:
                     ctx.pop()
-
+    for future in futures:
+        future.result()               
+    print(f'Syncing all teams successful: {time.strftime("%A, %d. %B %Y %I:%M:%S %p")}')
 
 def sync_team_helper(team, custom_map, client, org):
     try:

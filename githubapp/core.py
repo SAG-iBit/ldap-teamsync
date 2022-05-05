@@ -7,7 +7,7 @@ import logging
 import distutils
 
 from flask import abort, current_app, jsonify, request, _app_ctx_stack
-from github3 import GitHub, GitHubEnterprise
+from github3 import GitHub, GitHubEnterprise, session
 
 LOG = logging.getLogger(__name__)
 
@@ -117,6 +117,9 @@ class GitHubApp(object):
         if current_app.config.get("GITHUBAPP_URL"):
             return GitHubEnterprise(
                 current_app.config["GITHUBAPP_URL"],
+                session=session.GitHubSession(
+                    default_connect_timeout=300, default_read_timeout=400
+                ),
                 verify=current_app.config["VERIFY_SSL"],
             )
         return GitHub()

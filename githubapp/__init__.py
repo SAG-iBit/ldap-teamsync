@@ -30,7 +30,7 @@ CRON_INTERVAL = os.environ.get("SYNC_SCHEDULE", "0 * * * *")
 CHANGE_THRESHOLD = os.environ.get("CHANGE_THRESHOLD", 25)
 REPO_FOR_ISSUES = os.environ.get("REPO_FOR_ISSUES", "")
 ISSUE_ASSIGNEE = os.environ.get("ISSUE_ASSIGNEE", "")
-OPEN_ISSUE_ON_FAILURE = strtobool(os.environ.get("OPEN_ISSUE_ON_FAILURE", "False"))
+OPEN_ISSUE_ON_FAILURE = strtobool("False")
 
 try:
     TEST_MODE = strtobool(os.environ.get("TEST_MODE", "False"))
@@ -39,6 +39,6 @@ except ValueError as e:
     rootlogger.warn(e)
     TEST_MODE = False
 # Check if should add member to organization
-#ADD_MEMBER = strtobool(os.environ.get("ADD_MEMBER", "False"))
+# ADD_MEMBER = strtobool(os.environ.get("ADD_MEMBER", "False"))
 USER_SYNC_ATTRIBUTE = os.environ.get("USER_SYNC_ATTRIBUTE", "username").lower()
 SYNCMAP_ONLY = strtobool(os.environ.get("SYNCMAP_ONLY", "False"))

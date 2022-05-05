@@ -77,19 +77,16 @@ def sync_team(client=None, owner=None, team_id=None, slug=None):
             group=directory_members, team=team_members, attribute=USER_SYNC_ATTRIBUTE
         )
         if TEST_MODE:
-            print("Skipping execution due to TEST_MODE...")
+            print(f"TEST_MODE: Pending changes for team {team.slug}:")
             print(json.dumps(compare, indent=2))
         else:
             try:
                 execute_sync(org=org, team=team, slug=slug, state=compare)
-            except ValueError as e:
+            except (AssertionError, ValueError) as e:
                 if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                    print(f"DEBUG: {e}")
-                    #  open_issue(client=client, slug=slug, message=e)
-            except AssertionError as e:
-                if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                    print(f"DEBUG: {e}")
-                    #  open_issue(client=client, slug=slug, message=e)
+                    open_issue(client=client, slug=slug, message=e)
+                raise Exception(f"Team {team.slug} sync failed: {e}")
+        print(f"Processing Team Successful: {team.slug}")
     except Exception:
         traceback.print_exc(file=sys.stderr)
         raise
@@ -145,13 +142,13 @@ def github_team_members(client=None, owner=None, team_id=None, attribute="userna
             user = client.user(m.login)
             team_members.append(
                 {
-                    "username": str(user.login).casefold(),
-                    "email": str(user.email).casefold(),
+                    "username": str(user.login),
+                    "email": str(user.email),
                 }
             )
     else:
         for member in team.members():
-            team_members.append({"username": str(member).casefold(), "email": ""})
+            team_members.append({"username": str(member), "email": ""})
     return team_members
 
 
@@ -164,8 +161,8 @@ def compare_members(group, team, attribute="username"):
     :return: sync_state
     :rtype: dict
     """
-    directory_list = [x[attribute].lower() for x in group]
-    github_list = [x[attribute].lower() for x in team]
+    directory_list = [x[attribute].casefold() for x in group]
+    github_list = [x[attribute].casefold() for x in team]
     add_users = list(set(directory_list) - set(github_list))
     remove_users = list(set(github_list) - set(directory_list))
     sync_state = {
@@ -282,9 +279,10 @@ def sync_all_teams():
     installations = get_app_installations()
     custom_map = load_custom_map()
     futures = []
-
+    install_count = 0
     with ThreadPoolExecutor(max_workers=10) as exe:
         for i in installations():
+            install_count += 1
             print("========================================================")
             print(f"## Processing Organization: {i.account['login']}")
             print("========================================================")
@@ -301,12 +299,15 @@ def sync_all_teams():
                     print(f"DEBUG: {e}")
                 finally:
                     ctx.pop()
+    if not install_count:
+        raise Exception(f"No installation defined for APP_ID {os.getenv('APP_ID')}")
     for future in futures:
         future.result()
     print(f'Syncing all teams successful: {time.strftime("%A, %d. %B %Y %I:%M:%S %p")}')
 
 
 def sync_team_helper(team, custom_map, client, org):
+    print(f"Organization: {org.login}")
     try:
         if SYNCMAP_ONLY and team.slug not in custom_map:
             print(f"skipping team {team.slug} - not in sync map")

@@ -10,10 +10,15 @@ LOG = logging.getLogger(__name__)
 class Okta:
     def __init__(self):
         self.USERNAME_ATTRIBUTE = os.environ.get("OKTA_USERNAME_ATTRIBUTE", "login")
-        config = {
-            "orgUrl": os.environ["OKTA_ORG_URL"],
-            "token": os.environ["OKTA_ACCESS_TOKEN"],
-        }
+        auth_method = os.environ.get("OKTA_AUTH_METHOD", "token")
+        config = {"orgUrl": os.environ["OKTA_ORG_URL"]}
+        if auth_method == "oauth":
+            config["authorizationMode"] = "PrivateKey"
+            config["clientId"] = os.environ["OKTA_CLIENT_ID"]
+            config["scopes"] = os.environ["OKTA_SCOPES"].split(" ")
+            config["privateKey"] = os.environ["OKTA_PRIVATE_KEY"]
+        else:
+            config["token"] = os.environ["OKTA_ACCESS_TOKEN"]
         self.client = OktaClient(config)
 
     def get_group_members(self, group_name=None):
@@ -68,5 +73,9 @@ class Okta:
                     }
                 )
             except AttributeError as e:
-                print(f"{user.links['self']['href']}: {e}")
+                if user.links:
+                    user_info = user.links["self"]["href"]
+                else:
+                    user_info = user
+                print(f"User {user_info}: {e}")
         return member_list

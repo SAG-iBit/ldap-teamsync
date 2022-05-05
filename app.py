@@ -83,8 +83,6 @@ def sync_team(client=None, owner=None, team_id=None, slug=None):
             try:
                 execute_sync(org=org, team=team, slug=slug, state=compare)
             except (AssertionError, ValueError) as e:
-                if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
-                    open_issue(client=client, slug=slug, message=e)
                 raise Exception(f"Team {team.slug} sync failed: {e}")
         print(f"Processing Team Successful: {team.slug}")
     except Exception:
@@ -203,8 +201,10 @@ def execute_sync(org, team, slug, state):
             except github3.exceptions.NotFoundError:
                 print(f"User: {user} not found")
                 pass
-            # else:
-            #    print(f"Skipping {user} as they are not part of the org")
+            except Exception as e:
+                print(f"DEBUG: {e}")
+                traceback.print_exc(file=sys.stderr)
+                pass
 
         for user in state["action"]["remove"]:
             print(f"Removing {user} from {slug}")

@@ -85,6 +85,8 @@ def sync_team(client=None, owner=None, team_id=None, slug=None):
             try:
                 execute_sync(org=org, team=team, slug=slug, state=compare)
             except (AssertionError, ValueError) as e:
+                if strtobool(os.environ["OPEN_ISSUE_ON_FAILURE"]):
+                    open_issue(client=client, slug=slug, message=e)
                 raise Exception(f"Team {team.slug} sync failed: {e}")
         print(f"Processing Team Successful: {team.slug}")
     except Exception:
@@ -196,6 +198,7 @@ def execute_sync(org, team, slug, state):
     else:
         for user in state["action"]["add"]:
             # Validate that user is in org
+<<<<<<< HEAD
             if org.is_member(user) or ADD_MEMBER:
                 try:
                     print(f"Adding {user} to {slug}")

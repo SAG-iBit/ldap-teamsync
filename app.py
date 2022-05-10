@@ -19,6 +19,8 @@ from githubapp import (
     TEST_MODE,
     USER_SYNC_ATTRIBUTE,
     SYNCMAP_ONLY,
+    ADD_MEMBER,
+    REMOVE_MEMBER,
 )
 
 app = Flask(__name__)
@@ -194,21 +196,22 @@ def execute_sync(org, team, slug, state):
     else:
         for user in state["action"]["add"]:
             # Validate that user is in org
-            # if org.is_member(user) or ADD_MEMBER:
-            try:
-                print(f"Adding {user} to {slug}")
-                team.add_or_update_membership(user)
-            except github3.exceptions.NotFoundError:
-                print(f"User: {user} not found")
-                pass
-            except Exception as e:
-                print(f"DEBUG: {e}")
-                traceback.print_exc(file=sys.stderr)
-                pass
+            if org.is_member(user) or ADD_MEMBER:
+                try:
+                    print(f"Adding {user} to {slug}")
+                    team.add_or_update_membership(user)
+                except github3.exceptions.NotFoundError:
+                    print(f"User: {user} not found")
+                    pass
+                except Exception as e:
+                    print(f"DEBUG: {e}")
+                    traceback.print_exc(file=sys.stderr)
+                    pass
 
         for user in state["action"]["remove"]:
-            print(f"Removing {user} from {slug}")
-            team.revoke_membership(user)
+            if org.is_member(user) or REMOVE_MEMBER:
+                print(f"Removing {user} from {slug}")
+                team.revoke_membership(user)
 
 
 def open_issue(client, slug, message):

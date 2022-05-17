@@ -4,6 +4,18 @@ import logging
 from distutils.util import strtobool
 import requests
 import msal
+from requests.adapters import TimeoutSauce
+
+class CustomTimeout(TimeoutSauce):
+    def __init__(self, *args, **kwargs):
+        if kwargs["connect"] is None:
+            kwargs["connect"] = 5
+        if kwargs["read"] is None:
+            kwargs["read"] = 5
+        super().__init__(*args, **kwargs)
+
+# Set it globally, instead of specifying ``timeout=..`` kwarg on each call.
+requests.adapters.TimeoutSauce = CustomTimeout
 
 # Optional logging
 # logging.basicConfig(level=logging.DEBUG)  # Enable DEBUG log for entire script

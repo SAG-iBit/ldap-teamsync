@@ -203,8 +203,10 @@ def execute_sync(org, team, slug, state):
             except github3.exceptions.NotFoundError:
                 print(f"User: {user} not found")
                 pass
-            # else:
-            #    print(f"Skipping {user} as they are not part of the org")
+            except Exception as e:
+                print(f"DEBUG: {e}")
+                traceback.print_exc(file=sys.stderr)
+                pass
 
         for user in state["action"]["remove"]:
             print(f"Removing {user} from {slug}")

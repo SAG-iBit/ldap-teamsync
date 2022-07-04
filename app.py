@@ -312,11 +312,17 @@ def sync_team_helper(team, custom_map, client, org):
         if SYNCMAP_ONLY and team.slug not in custom_map:
             print(f"skipping team {team.slug} - not in sync map")
             return
+        if os.environ["USER_DIRECTORY"].upper() == "AAD":
+            # Azure APIs don't currently support case insensitive searching
+            slug = team.name
+        else:
+            slug = team.slug
+            
         sync_team(
             client=client,
             owner=org.login,
             team_id=team.id,
-            slug=team.slug,
+            slug=slug,
         )
     except Exception as e:
         print(f"Organization: {org.login}")

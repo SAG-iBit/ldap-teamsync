@@ -7,7 +7,7 @@ import logging
 import distutils
 
 from flask import abort, current_app, jsonify, request, _app_ctx_stack
-from github3 import GitHub, GitHubEnterprise, login
+from github3 import GitHub, GitHubEnterprise
 
 LOG = logging.getLogger(__name__)
 
@@ -36,7 +36,6 @@ class GitHubApp(object):
     def load_env(app):
         app.config["GITHUBAPP_ID"] = int(os.environ["APP_ID"])
         app.config["GITHUBAPP_SECRET"] = os.environ["WEBHOOK_SECRET"]
-        app.config["GITHUB_TOKEN"] = os.environ["TOKEN"]
         if "GHE_HOST" in os.environ:
             app.config["GITHUBAPP_URL"] = "https://{}".format(os.environ["GHE_HOST"])
             app.config["VERIFY_SSL"] = bool(
@@ -97,11 +96,7 @@ class GitHubApp(object):
 
     @property
     def id(self):
-        return current_app.config["GITHUBAPP_ID"] 
-        
-    @property
-    def token(self):
-        return current_app.config["GITHUB_TOKEN"]        
+        return current_app.config["GITHUBAPP_ID"]
 
     @property
     def key(self):
@@ -182,9 +177,14 @@ class GitHubApp(object):
         """
         """GitHub client authenticated as GitHub app installation"""
         ctx = _app_ctx_stack.top
-        client = GitHub(token=self.token)
-        ctx.githubapp_installation = client
-        return ctx.githubapp_installation
+        if installation_id is None:
+            raise RuntimeError("Installation ID is not specified.")
+        if ctx is not None:
+            if not hasattr(ctx, "githubapp_installation"):
+                client = self.client
+                client.login_as_app_installation(self.key, self.id, installation_id)
+                ctx.githubapp_installation = client
+            return ctx.githubapp_installation
 
     def on(self, event_action):
         """

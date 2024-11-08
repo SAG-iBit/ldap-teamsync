@@ -15,7 +15,7 @@ class LDAPClient:
     def __init__(self):
         # Read settings from the config file and store them as constants
         self.LDAP_SERVER_HOST = os.environ["LDAP_SERVER_HOST"]
-        self.LDAP_SERVER_PORT = os.environ["LDAP_SERVER_PORT"]
+        self.LDAP_SERVER_PORT = int(os.environ.get("LDAP_SERVER_PORT"))
         self.LDAP_BASE_DN = os.environ["LDAP_BASE_DN"]
         self.LDAP_USER_BASE_DN = os.environ["LDAP_USER_BASE_DN"]
         self.LDAP_USER_ATTRIBUTE = os.environ["LDAP_USER_ATTRIBUTE"]
@@ -43,7 +43,7 @@ class LDAPClient:
 
         self.USER_SYNC_ATTRIBUTE = os.environ["USER_SYNC_ATTRIBUTE"]
 
-        self.LDAP_USE_SSL = bool(os.environ("LDAP_USE_SSL", False))
+        self.LDAP_USE_SSL = bool(os.environ.get("LDAP_USE_SSL", False))
         if self.LDAP_USE_SSL:
             self.LDAP_SSL_PRIVATE_KEY = os.environ.get("LDAP_SSL_PRIVATE_KEY")
             self.LDAP_SSL_CERTIFICATE = os.environ.get("LDAP_SSL_CERTIFICATE")
@@ -76,8 +76,8 @@ class LDAPClient:
 
         self.srv = Server(
             host=self.LDAP_SERVER_HOST,
-            port=self.LDAP_SERVER_HOST,
-            use_ssl=self.USE_SSL,
+            port=self.LDAP_SERVER_PORT,
+            use_ssl=self.LDAP_USE_SSL,
             tls=self.tls,
         )
         self.conn = Connection(
@@ -97,61 +97,60 @@ class LDAPClient:
         :rtype member_list: list
         """
         member_list = []
-        entries = self.conn.extend.standard.paged_search(
+        self.conn.search(
             search_base=self.LDAP_BASE_DN,
             search_filter=self.LDAP_GROUP_FILTER.replace("{group_name}", group_name),
             attributes=[self.LDAP_GROUP_MEMBER_ATTRIBUTE],
-            paged_size=self.LDAP_PAGE_SIZE,
         )
+        entries = json.loads(self.conn.response_to_json())["entries"]
         for entry in entries:
-            if entry["type"] == "searchResEntry":
-                for member in entry["attributes"][self.LDAP_GROUP_MEMBER_ATTRIBUTE]:
-                    if self.LDAP_GROUP_BASE_DN in member:
-                        pass
-                    # print("Nested groups are not yet supported.")
-                    # print("This feature is currently under development.")
-                    # print("{} was not processed.".format(member))
-                    # print("Unable to look up '{}'".format(member))
-                    # print(e)
-                    else:
-                        try:
-                            member_dn = self.get_user_info(user=member)
-                            # pprint(member_dn)
+            for member in entry["attributes"][self.LDAP_GROUP_MEMBER_ATTRIBUTE]:
+                if self.LDAP_GROUP_BASE_DN in member:
+                    pass
+                # print("Nested groups are not yet supported.")
+                # print("This feature is currently under development.")
+                # print("{} was not processed.".format(member))
+                # print("Unable to look up '{}'".format(member))
+                # print(e)
+                else:
+                    try:
+                        member_dn = self.get_user_info(user=member)
+                        # pprint(member_dn)
+                        if (
+                            member_dn
+                            and member_dn["attributes"]
+                            and member_dn["attributes"][self.LDAP_USER_ATTRIBUTE]
+                        ):
+                            username = str(
+                                member_dn["attributes"][self.LDAP_USER_ATTRIBUTE][0]
+                            ).casefold()
                             if (
-                                member_dn
-                                and member_dn["attributes"]
-                                and member_dn["attributes"][self.LDAP_USER_ATTRIBUTE]
+                                self.USER_SYNC_ATTRIBUTE == "mail"
+                                and self.LDAP_USER_MAIL_ATTRIBUTE
+                                not in member_dn["attributes"]
                             ):
-                                username = str(
-                                    member_dn["attributes"][self.LDAP_USER_ATTRIBUTE][0]
+                                raise Exception(
+                                    f"{self.USER_SYNC_ATTRIBUTE} not found"
+                                )
+                            elif (
+                                self.LDAP_USER_MAIL_ATTRIBUTE
+                                in member_dn["attributes"]
+                            ):
+                                email = str(
+                                    member_dn["attributes"][
+                                        self.LDAP_USER_MAIL_ATTRIBUTE
+                                    ][0]
                                 ).casefold()
-                                if (
-                                    self.USER_SYNC_ATTRIBUTE == "mail"
-                                    and self.LDAP_USER_MAIL_ATTRIBUTE
-                                    not in member_dn["attributes"]
-                                ):
-                                    raise Exception(
-                                        f"{self.USER_SYNC_ATTRIBUTE} not found"
-                                    )
-                                elif (
-                                    self.LDAP_USER_MAIL_ATTRIBUTE
-                                    in member_dn["attributes"]
-                                ):
-                                    email = str(
-                                        member_dn["attributes"][
-                                            self.LDAP_USER_MAIL_ATTRIBUTE
-                                        ][0]
-                                    ).casefold()
-                                else:
-                                    email = None
-                                if "EMU_SHORTCODE" in os.environ:
-                                    username = (
-                                        username + "_" + os.environ["EMU_SHORTCODE"]
-                                    )
-                                user_info = {"username": username, "email": email}
-                                member_list.append(user_info)
-                        except Exception as e:
-                            traceback.print_exc(file=sys.stderr)
+                            else:
+                                email = None
+                            if "EMU_SHORTCODE" in os.environ:
+                                username = (
+                                    username + "_" + os.environ["EMU_SHORTCODE"]
+                                )
+                            user_info = {"username": username, "email": email}
+                            member_list.append(user_info)
+                    except Exception as e:
+                        traceback.print_exc(file=sys.stderr)
         return member_list
 
     def get_user_info(self, user=None):
